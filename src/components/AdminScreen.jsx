@@ -14,7 +14,6 @@ function AdminScreen({
 	getQtndPontos,
 	pontos,
 	updatePontos,
-	onGoHome,
 }) {
 	const [showQRScanner, setShowQRScanner] = useState(false);
 	const [pontosCreated, setPontosCreated] = useState(0);
@@ -104,9 +103,6 @@ return (
         <main className="admin-card">
             <header className="admin-card-header">
                 <h2><i className="fa-solid fa-wrench"></i> Modo Administrador</h2>
-                <button className="btn-icon" onClick={onGoHome} title="Voltar">
-                    <i className="fa-solid fa-arrow-left"></i> Voltar
-                </button>
             </header>
 
             {!calibrado ? (
