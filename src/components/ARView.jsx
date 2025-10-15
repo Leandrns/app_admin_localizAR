@@ -1,11 +1,11 @@
-// src/components/ARView.jsx (ADMIN)
-import { useRef, useEffect, useState } from "react";
+// src/components/ARView.jsx (ADMIN - COM FILA DE NOMES)
+import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { supabase } from '../supabaseClient';
 
-function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
+function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirProximoNome }) {
 	const containerRef = useRef(null);
 	const sceneRef = useRef(null);
 	const rendererRef = useRef(null);
@@ -15,10 +15,6 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 	const hitTestSourceRef = useRef(null);
 	const localReferenceSpaceRef = useRef(null);
 	const loaderRef = useRef(new GLTFLoader());
-	const pendingPositionRef = useRef(null);
-
-	const [showNameModal, setShowNameModal] = useState(false);
-	const [pointName, setPointName] = useState("");
 
 	useEffect(() => {
 		if (calibrado && containerRef.current) {
@@ -132,20 +128,12 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 		const position = new THREE.Vector3();
 		position.setFromMatrixPosition(reticleRef.current.matrix);
 
-		// Armazena a posição e abre modal para nome
-		pendingPositionRef.current = position;
-		setShowNameModal(true);
-	};
-
-	const handleConfirmPoint = () => {
-		if (!pointName.trim()) {
-			alert("Por favor, digite um nome para o ponto!");
-			return;
-		}
-
-		const position = pendingPositionRef.current;
+		// Consome o próximo nome da fila
+		const nomeDoPonto = consumirProximoNome();
+		
 		const posicaoRelativa = calcularPosicaoRelativa(position);
 
+		// Cria visualmente o ponto
 		loaderRef.current.load(
 			"/map_pointer_3d_icon.glb",
 			(gltf) => {
@@ -156,7 +144,7 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 
 				model.userData = {
 					carregado: true,
-					dadosOriginais: { ...posicaoRelativa, nome: pointName },
+					dadosOriginais: { ...posicaoRelativa, nome: nomeDoPonto },
 				};
 
 				const cor = new THREE.Color().setHSL(Math.random(), 0.7, 0.5);
@@ -169,19 +157,61 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 
 				sceneRef.current.add(model);
 
-				if (onCreatePoint) onCreatePoint({ ...posicaoRelativa, nome: pointName });
+				// Salva o ponto
+				if (onCreatePoint) {
+					onCreatePoint({ 
+						...posicaoRelativa, 
+						nome: nomeDoPonto 
+					});
+				}
+
+				// Feedback visual
+				mostrarFeedbackCriacao(nomeDoPonto);
 			},
 			undefined,
 			(error) => {
 				console.error("Erro ao carregar modelo:", error);
-				criarCuboFallback(position, { ...posicaoRelativa, nome: pointName });
+				criarCuboFallback(position, { ...posicaoRelativa, nome: nomeDoPonto });
 			}
 		);
+	};
 
-		// Limpa o modal
-		setShowNameModal(false);
-		setPointName("");
-		pendingPositionRef.current = null;
+	const mostrarFeedbackCriacao = (nome) => {
+		// Cria um elemento de feedback temporário
+		const feedback = document.createElement('div');
+		feedback.style.cssText = `
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			background: rgba(5, 213, 69, 0.95);
+			color: #000;
+			padding: 20px 40px;
+			border-radius: 12px;
+			font-size: 18px;
+			font-weight: bold;
+			z-index: 9999;
+			box-shadow: 0 4px 20px rgba(5, 213, 69, 0.5);
+			animation: fadeInOut 2s ease-in-out;
+		`;
+		feedback.innerHTML = `<i class="fa-solid fa-check-circle"></i> Ponto criado: ${nome || "Sem nome"}`;
+		
+		const style = document.createElement('style');
+		style.textContent = `
+			@keyframes fadeInOut {
+				0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+				20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+				80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+				100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+			}
+		`;
+		document.head.appendChild(style);
+		document.body.appendChild(feedback);
+		
+		setTimeout(() => {
+			document.body.removeChild(feedback);
+			document.head.removeChild(style);
+		}, 2000);
 	};
 
 	const criarCuboFallback = (position, posicaoRelativa) => {
@@ -203,6 +233,8 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 		if (onCreatePoint) {
 			onCreatePoint(posicaoRelativa);
 		}
+
+		mostrarFeedbackCriacao(posicaoRelativa.nome);
 	};
 
 	const carregarPontosSalvos = async () => {
@@ -393,106 +425,17 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 	};
 
 	return (
-		<>
-			<div
-				ref={containerRef}
-				style={{
-					position: "fixed",
-					top: 0,
-					left: 0,
-					width: "100%",
-					height: "100%",
-					zIndex: 1,
-				}}
-			/>
-
-			{/* Modal para nome do ponto */}
-			{showNameModal && (
-				<div style={{
-					position: "fixed",
-					top: 0,
-					left: 0,
-					width: "100%",
-					height: "100%",
-					backgroundColor: "rgba(0, 0, 0, 0.8)",
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					zIndex: 1000,
-					padding: "20px"
-				}}>
-					<div style={{
-						backgroundColor: "#1e1e1e",
-						border: "2px solid #05d545",
-						borderRadius: "12px",
-						padding: "30px",
-						maxWidth: "400px",
-						width: "100%",
-						color: "#fff"
-					}}>
-						<h3 style={{ marginTop: 0, color: "#05d545" }}>Nome do Ponto</h3>
-						<p style={{ color: "#a0a0a0", fontSize: "14px" }}>
-							Digite um nome descritivo para este ponto de interesse:
-						</p>
-						<input
-							type="text"
-							value={pointName}
-							onChange={(e) => setPointName(e.target.value)}
-							placeholder="Ex: Entrada Principal"
-							maxLength={50}
-							style={{
-								width: "100%",
-								padding: "12px",
-								fontSize: "16px",
-								borderRadius: "6px",
-								border: "2px solid #333",
-								backgroundColor: "#2a2a2a",
-								color: "#fff",
-								marginBottom: "20px"
-							}}
-							autoFocus
-						/>
-						<div style={{ display: "flex", gap: "10px" }}>
-							<button
-								onClick={() => {
-									setShowNameModal(false);
-									setPointName("");
-									pendingPositionRef.current = null;
-								}}
-								style={{
-									flex: 1,
-									padding: "12px",
-									backgroundColor: "#666",
-									border: "none",
-									borderRadius: "6px",
-									color: "#fff",
-									cursor: "pointer",
-									fontSize: "16px"
-								}}
-							>
-								Cancelar
-							</button>
-							<button
-								onClick={handleConfirmPoint}
-								style={{
-									flex: 1,
-									padding: "12px",
-									backgroundColor: "#05d545",
-									border: "none",
-									borderRadius: "6px",
-									color: "#000",
-									cursor: "pointer",
-									fontSize: "16px",
-									fontWeight: "bold"
-								}}
-							>
-								Criar Ponto
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
-		</>
+		<div
+			ref={containerRef}
+			style={{
+				position: "fixed",
+				top: 0,
+				left: 0,
+				width: "100%",
+				height: "100%",
+				zIndex: 1,
+			}}
+		/>
 	);
 }
 
