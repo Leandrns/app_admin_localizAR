@@ -1,11 +1,10 @@
-// src/components/ARView.jsx (ADMIN - COM FILA DE NOMES)
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { supabase } from '../supabaseClient';
 
-function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirProximoNome }) {
+function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint }) {
 	const containerRef = useRef(null);
 	const sceneRef = useRef(null);
 	const rendererRef = useRef(null);
@@ -62,6 +61,7 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirPro
 		});
 		container.appendChild(arButton);
 
+		// Reticle para admin criar pontos
 		const geometry = new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2);
 		const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 		const reticle = new THREE.Mesh(geometry, material);
@@ -128,12 +128,8 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirPro
 		const position = new THREE.Vector3();
 		position.setFromMatrixPosition(reticleRef.current.matrix);
 
-		// Consome o próximo nome da fila
-		const nomeDoPonto = consumirProximoNome();
-		
 		const posicaoRelativa = calcularPosicaoRelativa(position);
 
-		// Cria visualmente o ponto
 		loaderRef.current.load(
 			"/map_pointer_3d_icon.glb",
 			(gltf) => {
@@ -144,7 +140,7 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirPro
 
 				model.userData = {
 					carregado: true,
-					dadosOriginais: { ...posicaoRelativa, nome: nomeDoPonto },
+					dadosOriginais: posicaoRelativa,
 				};
 
 				const cor = new THREE.Color().setHSL(Math.random(), 0.7, 0.5);
@@ -157,61 +153,14 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirPro
 
 				sceneRef.current.add(model);
 
-				// Salva o ponto
-				if (onCreatePoint) {
-					onCreatePoint({ 
-						...posicaoRelativa, 
-						nome: nomeDoPonto 
-					});
-				}
-
-				// Feedback visual
-				mostrarFeedbackCriacao(nomeDoPonto);
+				if (onCreatePoint) onCreatePoint(posicaoRelativa);
 			},
 			undefined,
 			(error) => {
 				console.error("Erro ao carregar modelo:", error);
-				criarCuboFallback(position, { ...posicaoRelativa, nome: nomeDoPonto });
+				criarCuboFallback(position, posicaoRelativa);
 			}
 		);
-	};
-
-	const mostrarFeedbackCriacao = (nome) => {
-		// Cria um elemento de feedback temporário
-		const feedback = document.createElement('div');
-		feedback.style.cssText = `
-			position: fixed;
-			top: 50%;
-			left: 50%;
-			transform: translate(-50%, -50%);
-			background: rgba(5, 213, 69, 0.95);
-			color: #000;
-			padding: 20px 40px;
-			border-radius: 12px;
-			font-size: 18px;
-			font-weight: bold;
-			z-index: 9999;
-			box-shadow: 0 4px 20px rgba(5, 213, 69, 0.5);
-			animation: fadeInOut 2s ease-in-out;
-		`;
-		feedback.innerHTML = `<i class="fa-solid fa-check-circle"></i> Ponto criado: ${nome || "Sem nome"}`;
-		
-		const style = document.createElement('style');
-		style.textContent = `
-			@keyframes fadeInOut {
-				0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-				20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-				80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-				100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-			}
-		`;
-		document.head.appendChild(style);
-		document.body.appendChild(feedback);
-		
-		setTimeout(() => {
-			document.body.removeChild(feedback);
-			document.head.removeChild(style);
-		}, 2000);
 	};
 
 	const criarCuboFallback = (position, posicaoRelativa) => {
@@ -233,8 +182,6 @@ function ARView({ calibrado, pontoReferencia, pontos, onCreatePoint, consumirPro
 		if (onCreatePoint) {
 			onCreatePoint(posicaoRelativa);
 		}
-
-		mostrarFeedbackCriacao(posicaoRelativa.nome);
 	};
 
 	const carregarPontosSalvos = async () => {
