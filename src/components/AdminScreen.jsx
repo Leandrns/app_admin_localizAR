@@ -1,3 +1,4 @@
+// src/components/AdminScreen.jsx
 import { useState, useEffect } from "react";
 import QRScanner from "./QRScanner";
 import ARView from "./ARView";
@@ -47,7 +48,6 @@ function AdminScreen({
 				`Calibração realizada!\nEvento: ${qrData}\nEntre no modo AR para criar pontos.\nCONTINUE APONTANDO O CELULAR PARA O QR CODE PARA CLICAR EM START AR`
 			);
 
-			// Inicializar AR automaticamente
 			setTimeout(() => {
 				setShowAR(true);
 			}, 500);
@@ -56,13 +56,14 @@ function AdminScreen({
 		}
 	};
 
-	const handleCreatePoint = async (posicaoRelativa) => {
+	const handleCreatePoint = async (dadosPonto) => {
 		const novoPonto = {
 			id: generateId(),
-			posicaoRelativa: posicaoRelativa,
+			posicaoRelativa: dadosPonto,
 			qrReferencia: pontoReferencia.qrCode,
 			timestamp: Date.now(),
 			criadoPor: "admin",
+			nome: dadosPonto.nome, // Novo campo
 		};
 
 		updatePontos(novoPonto);
@@ -71,17 +72,18 @@ function AdminScreen({
 		// Salva no Supabase
 		const { error } = await supabase.from("pontos").insert({
 			id: novoPonto.id,
-			pos_x: posicaoRelativa.x,
-			pos_y: posicaoRelativa.y,
-			pos_z: posicaoRelativa.z,
+			pos_x: dadosPonto.x,
+			pos_y: dadosPonto.y,
+			pos_z: dadosPonto.z,
 			qr_referencia: novoPonto.qrReferencia,
 			created_by: novoPonto.criadoPor,
+			nome: dadosPonto.nome, // Adiciona o nome
 		});
 
 		if (error) {
 			console.error("Erro ao salvar ponto no Supabase:", error.message);
 		} else {
-			console.log("✅ Ponto salvo no Supabase");
+			console.log("✅ Ponto salvo no Supabase:", dadosPonto.nome);
 		}
 	};
 
@@ -106,7 +108,6 @@ return (
             </header>
 
             {!calibrado ? (
-                //NÃO CALIBRADO
                 <section className="admin-card-body calibration-needed">
                     <div className="status-badge nao-calibrado">
                         <i className="fa-solid fa-qrcode"></i> Calibração Necessária
@@ -120,7 +121,6 @@ return (
                 </section>
 
             ) : (
-				// CALIBRADO
                 <section className="admin-card-body calibration-done">
                     <div className="status-badge calibrado">
                         <i className="fa-solid fa-check"></i> Sistema Calibrado
@@ -149,7 +149,7 @@ return (
                 </section>
             )}
         </main>
-			{showAR && calibrado && (
+		{showAR && calibrado && (
 			<ARView
 				mode="admin"
 				calibrado={calibrado}
